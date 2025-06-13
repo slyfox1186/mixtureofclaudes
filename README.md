@@ -47,7 +47,7 @@ npm start
 Add this server to your Claude Code configuration:
 
 ```bash
-claude mcp add mixtureofclaudes /path/to/mixtureofclaudes-mcp-server/dist/index.js
+claude mcp add mixtureofclaudes /path/to/mixtureofclaudes/dist/index.js
 ```
 
 ## Available Expert Tools
@@ -107,7 +107,7 @@ npm run build
 ## Project Structure
 
 ```
-mixtureofclaudes-mcp-server/
+mixtureofclaudes/
 ├── src/
 │   ├── tools/                 # Expert consultation tools
 │   │   ├── AnalyzeTaskTool.ts
