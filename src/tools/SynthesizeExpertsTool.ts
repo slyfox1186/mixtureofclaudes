@@ -1,9 +1,27 @@
 import { MCPTool } from "mcp-framework";
 import { z } from "zod";
+import CodeLocatorExpertTool from "./CodeLocatorExpertTool";
 
 interface SynthesizeInput {
   expertResponses: string;
   userQuery: string;
+  includeCodeLocation?: boolean;
+}
+
+interface CodeLocation {
+  filePath: string;
+  lineNumber?: number;
+  codeSnippet: string;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  relevance: string;
+}
+
+interface ExpertResponse {
+  priority?: string;
+  coreInsight?: string;
+  immediateActions?: string[];
+  risks?: string[];
+  confidence?: string;
 }
 
 interface SynthesizedResponse {
@@ -13,6 +31,7 @@ interface SynthesizedResponse {
   criticalRisks: string[];
   nextSteps: string[];
   successCriteria: string[];
+  codeLocations?: CodeLocation[];
 }
 
 class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
@@ -28,6 +47,10 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
       type: z.string(),
       description: "Original user query for context",
     },
+    includeCodeLocation: {
+      type: z.boolean().optional(),
+      description: "Whether to include code location analysis using CodeLocatorExpert",
+    },
   };
 
   async execute(input: SynthesizeInput): Promise<SynthesizedResponse> {
@@ -36,16 +59,16 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
       const query = input.userQuery.toLowerCase();
       
       // Handle both array format and object format
-      let experts: any[];
+      let experts: ExpertResponse[];
       if (Array.isArray(expertData)) {
-        experts = expertData;
+        experts = expertData as ExpertResponse[];
       } else {
         // Convert object format to array
-        experts = Object.values(expertData);
+        experts = Object.values(expertData) as ExpertResponse[];
       }
       
       // Determine overall priority from expert inputs
-      const priorities = experts.map((e: any) => e.priority || "MEDIUM");
+      const priorities = experts.map((e: ExpertResponse) => e.priority || "MEDIUM");
       const hasHigh = priorities.includes("HIGH");
       const hasCritical = priorities.length >= 3 && hasHigh;
       
@@ -54,9 +77,9 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
                              priorities.includes("MEDIUM") ? "MEDIUM" as const : "LOW" as const;
 
       // Extract key insights and actions
-      const coreInsights = experts.map((e: any) => e.coreInsight).filter(Boolean);
-      const allActions = experts.flatMap((e: any) => e.immediateActions || []);
-      const allRisks = experts.flatMap((e: any) => e.risks || []);
+      const coreInsights = experts.map((e: ExpertResponse) => e.coreInsight).filter(Boolean);
+      const allActions = experts.flatMap((e: ExpertResponse) => e.immediateActions || []);
+      const allRisks = experts.flatMap((e: ExpertResponse) => e.risks || []);
       
       // Resolve conflicts and create unified plan
       const conflictResolution = this.resolveConflicts(experts);
@@ -66,13 +89,22 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
       // Generate success criteria
       const successCriteria = this.generateSuccessCriteria(query, experts);
       
+      // Optionally include code location analysis
+      let codeLocations: CodeLocation[] | undefined;
+      if (input.includeCodeLocation) {
+        const codeLocator = new CodeLocatorExpertTool();
+        const locationResult = await codeLocator.execute({ userQuery: input.userQuery });
+        codeLocations = locationResult.locations;
+      }
+      
       return {
         overallPriority,
         conflictResolution,
         unifiedPlan,
         criticalRisks: criticalRisks.slice(0, 3), // Top 3 risks
         nextSteps: unifiedPlan.slice(0, 5), // Top 5 actions
-        successCriteria
+        successCriteria,
+        codeLocations
       };
       
     } catch (error) {
@@ -88,7 +120,7 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
     }
   }
 
-  private resolveConflicts(experts: any[]): string {
+  private resolveConflicts(experts: ExpertResponse[]): string {
     const priorities = experts.map(e => e.priority);
     const highPriorityCount = priorities.filter(p => p === "HIGH").length;
     
@@ -153,7 +185,7 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
     return 1; // Default risk score
   }
 
-  private generateSuccessCriteria(query: string, experts: any[]): string[] {
+  private generateSuccessCriteria(query: string, experts: ExpertResponse[]): string[] {
     const criteria = ["Implementation completed successfully"];
     
     // Add specific criteria based on query type
