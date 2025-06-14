@@ -19,7 +19,7 @@ interface ExpertResponse {
 
 class ConsultSoftwareEngineerTool extends MCPTool<ConsultSoftwareEngineerInput> {
   name = "consult_software_engineer";
-  description = "Consult with a software engineering expert who acts as a HIGH-END COLLABORATOR, focusing on WHAT needs to be done and WHY, avoiding overengineering and prescriptive HOW. Resolves issues immediately upon discovery.";
+  description = "Software engineering specialist for architecture decisions, technical debt analysis, refactoring strategies, and implementation approaches. Focuses on maintainability, scalability patterns, and engineering trade-offs.";
 
   schema = {
     userQuery: {

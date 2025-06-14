@@ -36,7 +36,7 @@ interface SynthesizedResponse {
 
 class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
   name = "synthesize_experts";
-  description = "Acts as EXECUTIVE ASSISTANT: Synthesizes expert input, resolves conflicts, focuses on WHAT needs doing and WHY. Avoids prescriptive HOW - trusts LLM implementation.";
+  description = "Expert consensus synthesis for complex technical decisions. Reconciles conflicting specialist recommendations, prioritizes by technical risk and business impact. Most valuable when dealing with multi-faceted problems where domain expertise spans security, performance, architecture, and operational concerns.";
 
   schema = {
     expertResponses: {

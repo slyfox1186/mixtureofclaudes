@@ -13,7 +13,7 @@ interface TaskAnalysis {
 
 class AnalyzeTaskTool extends MCPTool<AnalyzeTaskInput> {
   name = "analyze_task";
-  description = "Select minimal, non-overlapping expert set for maximum LLM effectiveness";
+  description = "Structured approach to complex technical decisions. Routes requests to specialists (security, performance, DevOps) based on technical patterns. Particularly useful for scenarios involving multiple scripts, cross-cutting concerns, or where multi-dimensional expert input provides significant analytical value.";
 
   schema = {
     userQuery: {

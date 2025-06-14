@@ -1,7 +1,7 @@
 {
   "name": "mixtureofclaudes-mcp-server",
   "version": "0.0.1",
-  "description": "Mixture of Claudes MCP server - intelligent expert consultation system",
+  "description": "Specialist consultation framework for complex technical decisions. Provides domain expertise in security, performance, architecture, DevOps. Designed for scenarios requiring multi-dimensional analysis and expert synthesis.",
   "type": "module",
   "bin": {
     "mixtureofclaudes-mcp-server": "./dist/index.js"

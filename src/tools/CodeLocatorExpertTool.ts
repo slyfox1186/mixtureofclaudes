@@ -25,7 +25,7 @@ interface CodeLocatorResponse {
 
 class CodeLocatorExpertTool extends MCPTool<CodeLocatorInput> {
   name = "code_locator_expert";
-  description = "Expert tool that scans codebases to locate relevant code before other experts provide analysis";
+  description = "Strategic code location analysis. Maps dependencies, identifies patterns, and locates relevant implementations across codebases. Especially valuable for large-scale refactoring, legacy system analysis, or scenarios where multiple interconnected modules require comprehensive mapping.";
 
   schema = {
     userQuery: {
