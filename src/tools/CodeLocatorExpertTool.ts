@@ -5,7 +5,7 @@ interface CodeLocatorInput {
   userQuery: string;
   keywords?: string[];
   fileExtensions?: string[];
-  searchType?: "function" | "class" | "component" | "service" | "config" | "general";
+  searchType?: string;
 }
 
 interface CodeLocation {
@@ -41,14 +41,27 @@ class CodeLocatorExpertTool extends MCPTool<CodeLocatorInput> {
       description: "File extensions to focus on (e.g., ['.ts', '.js', '.tsx'])",
     },
     searchType: {
-      type: z.enum(["function", "class", "component", "service", "config", "general"]).optional(),
-      description: "Type of code construct to search for",
+      type: z.string().optional(),
+      description: "Type of code construct to search for (e.g., function, class, component, service, config, or any specific pattern)",
     },
   };
 
   async execute(input: CodeLocatorInput): Promise<CodeLocatorResponse> {
-    const analysis = this.analyzeSearchRequirements(input);
-    return analysis;
+    const startTime = Date.now();
+    console.log(`\n[CodeLocator] Starting code search...`);
+    
+    try {
+      const analysis = this.analyzeSearchRequirements(input);
+      const duration = Date.now() - startTime;
+      
+      console.log(`[CodeLocator] Search complete (${duration}ms) - Found ${analysis.locations.length} locations`);
+      
+      return analysis;
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`[CodeLocator] Search failed after ${duration}ms:`, error);
+      throw error;
+    }
   }
 
   private analyzeSearchRequirements(input: CodeLocatorInput): CodeLocatorResponse {
@@ -56,30 +69,51 @@ class CodeLocatorExpertTool extends MCPTool<CodeLocatorInput> {
     
     // Extract key terms and patterns from the query
     const searchTerms = this.extractSearchTerms(query);
+    
+    if (searchTerms.length > 0) {
+      console.log(`  → Extracted ${searchTerms.length} search terms: ${searchTerms.slice(0, 3).join(', ')}...`);
+    }
+    
     const searchStrategy = this.determineSearchStrategy(query, input.searchType);
+    console.log(`  → Strategy: ${searchStrategy}`);
     
     // Generate strategic search recommendations
     const locations = this.generateSearchLocations(query, searchTerms, searchStrategy);
     
+    if (locations.length > 0) {
+      console.log(`  → Top location: ${locations[0].filePath} (${locations[0].confidence} confidence)`);
+    }
+    
+    const recommendations = this.generateSearchRecommendations(query, searchTerms);
+    const nextSteps = this.generateNextSteps(query, searchStrategy);
+    
     return {
       locations,
       searchStrategy,
-      recommendations: this.generateSearchRecommendations(query, searchTerms),
-      nextSteps: this.generateNextSteps(query, searchStrategy)
+      recommendations,
+      nextSteps
     };
   }
 
   private extractSearchTerms(query: string): string[] {
     const terms: string[] = [];
     
+    // Import/module analysis
+    if (query.includes("import") || query.includes("from")) {
+      terms.push("import", "from", "export", "module.exports", "require");
+      
+      if (query.includes("mealscheduling")) {
+        terms.push("mealScheduling", "meal", "scheduling");
+      }
+      
+      if (query.includes("assistant")) {
+        terms.push("assistantOperations", "assistant", "operations");
+      }
+    }
+    
     // Database/sorting related terms
     if (query.includes("sort") || query.includes("order")) {
       terms.push("sort", "order", "ORDER BY", "ASC", "DESC", "orderBy");
-    }
-    
-    // Database terms
-    if (query.includes("database") || query.includes("query") || query.includes("sql")) {
-      terms.push("query", "sql", "database", "db", "select", "where");
     }
     
     // Contact/user data terms
@@ -87,14 +121,9 @@ class CodeLocatorExpertTool extends MCPTool<CodeLocatorInput> {
       terms.push("contact", "name", "display_name", "first_name", "last_name");
     }
     
-    // API/service terms
-    if (query.includes("api") || query.includes("service") || query.includes("endpoint")) {
-      terms.push("api", "service", "endpoint", "controller", "route");
-    }
-    
-    // Frontend terms
-    if (query.includes("frontend") || query.includes("component") || query.includes("ui")) {
-      terms.push("component", "tsx", "jsx", "react", "vue", "angular");
+    // Cross-module dependency detection
+    if (query.includes("duplicate") || query.includes("same") || query.includes("intelligent")) {
+      terms.push("executeCalendarOperation", "executePlacesOperation", "intelligent*handler");
     }
     
     return terms;
@@ -121,6 +150,47 @@ class CodeLocatorExpertTool extends MCPTool<CodeLocatorInput> {
   private generateSearchLocations(query: string, searchTerms: string[], strategy: string): CodeLocation[] {
     const locations: CodeLocation[] = [];
     
+    // For import/module organization issues
+    if (searchTerms.includes("import") || searchTerms.includes("mealScheduling")) {
+      locations.push({
+        filePath: "src/backend/lib/assistantOperations/",
+        codeSnippet: "grep -r 'from.*mealScheduling' .",
+        confidence: "HIGH",
+        relevance: "Find cross-module imports from mealScheduling"
+      });
+      
+      locations.push({
+        filePath: "src/backend/lib/assistantOperations/mealSchedulingAssistant.ts",
+        codeSnippet: "Look for imports at top of file",
+        confidence: "HIGH",
+        relevance: "Main file with problematic imports"
+      });
+      
+      locations.push({
+        filePath: "src/backend/services/assistantManagerService.ts",
+        codeSnippet: "Check how operations are imported and used",
+        confidence: "HIGH",
+        relevance: "Service layer using these operations"
+      });
+    }
+    
+    // For duplicate handler issues
+    if (searchTerms.includes("executeCalendarOperation") || searchTerms.includes("intelligent*handler")) {
+      locations.push({
+        filePath: "**/*Handler.ts",
+        codeSnippet: "grep -r 'intelligentHandler' --include='*.ts'",
+        confidence: "HIGH",
+        relevance: "Find all intelligent handler implementations"
+      });
+      
+      locations.push({
+        filePath: "src/backend/",
+        codeSnippet: "grep -r 'executeCalendarOperation\\|executePlacesOperation' .",
+        confidence: "HIGH",
+        relevance: "Find duplicate operation executions"
+      });
+    }
+    
     // For database/sorting issues
     if (strategy.includes("sorting")) {
       locations.push({
@@ -128,54 +198,6 @@ class CodeLocatorExpertTool extends MCPTool<CodeLocatorInput> {
         codeSnippet: "Search for ORDER BY clauses and sorting logic",
         confidence: "HIGH",
         relevance: "Database sorting implementation"
-      });
-      
-      locations.push({
-        filePath: "src/backend/types/",
-        codeSnippet: "Look for interface definitions with sorting fields",
-        confidence: "MEDIUM",
-        relevance: "Data model definitions"
-      });
-      
-      locations.push({
-        filePath: "src/components/",
-        codeSnippet: "Search for frontend sorting components",
-        confidence: "MEDIUM",
-        relevance: "UI sorting controls"
-      });
-    }
-    
-    // For API/service issues
-    if (strategy.includes("API") || strategy.includes("service")) {
-      locations.push({
-        filePath: "src/api/",
-        codeSnippet: "Search for API route definitions",
-        confidence: "HIGH",
-        relevance: "API endpoint implementations"
-      });
-      
-      locations.push({
-        filePath: "src/services/",
-        codeSnippet: "Look for service layer implementations",
-        confidence: "HIGH",
-        relevance: "Business logic services"
-      });
-    }
-    
-    // For frontend/component issues
-    if (strategy.includes("component") || strategy.includes("Frontend")) {
-      locations.push({
-        filePath: "src/components/",
-        codeSnippet: "Search for React/Vue components",
-        confidence: "HIGH",
-        relevance: "UI component implementations"
-      });
-      
-      locations.push({
-        filePath: "src/pages/",
-        codeSnippet: "Look for page-level components",
-        confidence: "MEDIUM",
-        relevance: "Page implementations"
       });
     }
     

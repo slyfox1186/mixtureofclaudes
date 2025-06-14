@@ -1,6 +1,6 @@
 import { MCPTool } from "mcp-framework";
 import { z } from "zod";
-import CodeLocatorExpertTool from "./CodeLocatorExpertTool";
+import CodeLocatorExpertTool from "./CodeLocatorExpertTool.js";
 
 interface SynthesizeInput {
   expertResponses: string;
@@ -36,7 +36,7 @@ interface SynthesizedResponse {
 
 class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
   name = "synthesize_experts";
-  description = "Combine expert responses into unified, actionable plan with conflict resolution";
+  description = "Acts as EXECUTIVE ASSISTANT: Synthesizes expert input, resolves conflicts, focuses on WHAT needs doing and WHY. Avoids prescriptive HOW - trusts LLM implementation.";
 
   schema = {
     expertResponses: {
@@ -54,6 +54,12 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
   };
 
   async execute(input: SynthesizeInput): Promise<SynthesizedResponse> {
+    const startTime = Date.now();
+    console.log(`\n[Synthesizer] Starting expert synthesis...`);
+    console.log(`  → Acting as: Executive Assistant (strategic synthesis)`);
+    console.log(`  → Focus: WHAT needs doing and WHY it matters`);
+    console.log(`  → Philosophy: Trust LLM to determine HOW`);
+    
     try {
       const expertData = JSON.parse(input.expertResponses);
       const query = input.userQuery.toLowerCase();
@@ -67,6 +73,8 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
         experts = Object.values(expertData) as ExpertResponse[];
       }
       
+      console.log(`  → Processing ${experts.length} expert responses`);
+      
       // Determine overall priority from expert inputs
       const priorities = experts.map((e: ExpertResponse) => e.priority || "MEDIUM");
       const hasHigh = priorities.includes("HIGH");
@@ -77,7 +85,7 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
                              priorities.includes("MEDIUM") ? "MEDIUM" as const : "LOW" as const;
 
       // Extract key insights and actions
-      const coreInsights = experts.map((e: ExpertResponse) => e.coreInsight).filter(Boolean);
+      const coreInsights = experts.map((e: ExpertResponse) => e.coreInsight).filter((insight): insight is string => Boolean(insight));
       const allActions = experts.flatMap((e: ExpertResponse) => e.immediateActions || []);
       const allRisks = experts.flatMap((e: ExpertResponse) => e.risks || []);
       
@@ -86,18 +94,23 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
       const unifiedPlan = this.createUnifiedPlan(allActions, coreInsights);
       const criticalRisks = this.prioritizeRisks(allRisks);
       
+      console.log(`  → Priority: ${overallPriority} (${this.calculateConfidenceLevel(experts)} confidence)`);
+      console.log(`  → Actions: ${allActions.length} | Risks: ${allRisks.length} | Insights: ${coreInsights.length}`);
+      
       // Generate success criteria
       const successCriteria = this.generateSuccessCriteria(query, experts);
       
       // Optionally include code location analysis
       let codeLocations: CodeLocation[] | undefined;
       if (input.includeCodeLocation) {
+        console.log(`  → Running CodeLocatorExpert...`);
         const codeLocator = new CodeLocatorExpertTool();
         const locationResult = await codeLocator.execute({ userQuery: input.userQuery });
         codeLocations = locationResult.locations;
       }
       
-      return {
+      const duration = Date.now() - startTime;
+      const result = {
         overallPriority,
         conflictResolution,
         unifiedPlan,
@@ -106,6 +119,10 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
         successCriteria,
         codeLocations
       };
+      
+      console.log(`[Synthesizer] Synthesis complete (${duration}ms)`);
+      
+      return result;
       
     } catch (error) {
       // Enhanced fallback with error details
@@ -125,40 +142,70 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
     const highPriorityCount = priorities.filter(p => p === "HIGH").length;
     
     if (highPriorityCount >= 2) {
-      return "Multiple high-priority concerns identified - address security and performance first";
+      return "WHAT: Multiple critical issues identified. WHY: Risk compounds. APPROACH: Address highest impact first, let LLM sequence implementation.";
     } else if (experts.length >= 3) {
-      return "Multi-expert consensus needed - prioritize by business impact and technical risk";
+      return "WHAT: Complex situation requiring synthesis. WHY: Multiple perspectives matter. APPROACH: Define clear goals, trust LLM execution.";
     } else {
-      return "Expert opinions aligned - proceed with recommended approach";
+      return "WHAT: Clear path forward. WHY: Expert consensus achieved. APPROACH: Execute recommendations, avoid overcomplication.";
     }
   }
 
   private createUnifiedPlan(actions: string[], insights: string[]): string[] {
-    // Deduplicate and prioritize actions
+    // Executive Assistant approach: Focus on WHAT and WHY, not HOW
     const uniqueActions = [...new Set(actions)];
     
-    // Prioritize common action patterns
-    const prioritized = uniqueActions.sort((a, b) => {
+    // Transform actions to executive-level directives
+    const executiveActions = uniqueActions.map(action => {
+      if (action.includes("WHAT:") || action.includes("WHY:")) {
+        return action; // Already in correct format
+      }
+      // Transform prescriptive actions to strategic ones
+      return this.transformToExecutiveAction(action);
+    });
+    
+    // Prioritize by strategic impact
+    const prioritized = executiveActions.sort((a, b) => {
       const aScore = this.getActionPriority(a);
       const bScore = this.getActionPriority(b);
       return bScore - aScore;
     });
     
-    return prioritized.slice(0, 6); // Top 6 actions
+    return prioritized.slice(0, 6); // Top 6 strategic actions
   }
 
   private getActionPriority(action: string): number {
     const actionLower = action.toLowerCase();
     
-    // High priority patterns
-    if (actionLower.match(/security|vulnerability|fix|patch/)) return 10;
-    if (actionLower.match(/test|validation|verify/)) return 9;
-    if (actionLower.match(/backup|monitor|log/)) return 8;
-    if (actionLower.match(/implement|create|build/)) return 7;
-    if (actionLower.match(/optimize|improve|enhance/)) return 6;
-    if (actionLower.match(/document|plan|design/)) return 5;
+    // Executive priority: Impact and urgency over implementation details
+    if (actionLower.includes("what:") && actionLower.match(/block|critical|immediate/)) return 10;
+    if (actionLower.match(/security|vulnerability|risk/)) return 9;
+    if (actionLower.includes("why:") && actionLower.match(/impact|consequence/)) return 8;
+    if (actionLower.match(/resolve|fix|address/)) return 7;
+    if (actionLower.match(/improve|enhance|optimize/)) return 6;
+    if (actionLower.match(/plan|design|structure/)) return 5;
     
     return 1; // Default priority
+  }
+  
+  private transformToExecutiveAction(action: string): string {
+    const actionLower = action.toLowerCase();
+    
+    // Transform common prescriptive actions to strategic ones
+    if (actionLower.includes("implement")) {
+      return `WHAT: ${action}. WHY: Addresses identified need. HOW: LLM determines best approach.`;
+    }
+    if (actionLower.includes("create") || actionLower.includes("build")) {
+      return `WHAT: ${action}. WHY: Required functionality. APPROACH: Start simple, iterate.`;
+    }
+    if (actionLower.includes("refactor") || actionLower.includes("clean")) {
+      return `WHAT: ${action}. WHY: Improve maintainability. CAUTION: Avoid overengineering.`;
+    }
+    if (actionLower.includes("test") || actionLower.includes("verify")) {
+      return `WHAT: ${action}. WHY: Ensure reliability. FOCUS: Critical paths first.`;
+    }
+    
+    // Default transformation
+    return `WHAT: ${action}. HOW: Trust LLM to implement effectively.`;
   }
 
   private prioritizeRisks(risks: string[]): string[] {
@@ -186,25 +233,39 @@ class SynthesizeExpertsTool extends MCPTool<SynthesizeInput> {
   }
 
   private generateSuccessCriteria(query: string, experts: ExpertResponse[]): string[] {
-    const criteria = ["Implementation completed successfully"];
+    // Executive success criteria: Focus on outcomes, not tasks
+    const criteria = ["WHAT: Core objective achieved. MEASURE: User value delivered."];
     
-    // Add specific criteria based on query type
+    // Add outcome-based criteria
     if (query.match(/performance|slow|speed/)) {
-      criteria.push("Performance targets met", "No performance regressions");
+      criteria.push("WHAT: Performance acceptable to users. WHY: User satisfaction matters most.");
     }
     if (query.match(/security|auth|login/)) {
-      criteria.push("Security vulnerabilities addressed", "Compliance requirements met");
+      criteria.push("WHAT: System secure. WHY: User trust is paramount.");
     }
     if (query.match(/user|interface|design/)) {
-      criteria.push("User experience improved", "Accessibility requirements met");
+      criteria.push("WHAT: Users can accomplish goals. WHY: Usability drives adoption.");
     }
     if (query.match(/bug|error|fix/)) {
-      criteria.push("Bug resolved", "No new issues introduced");
+      criteria.push("WHAT: Issue resolved. WHY: Restore functionality. HOW: LLM's discretion.");
     }
     
     criteria.push("All tests passing", "Documentation updated");
     
     return criteria.slice(0, 4); // Top 4 criteria
+  }
+  
+  private calculateConfidenceLevel(experts: ExpertResponse[]): string {
+    const confidences = experts.map(e => e.confidence).filter(Boolean);
+    const highCount = confidences.filter(c => c === "HIGH").length;
+    const totalCount = confidences.length;
+    
+    if (totalCount === 0) return "UNKNOWN";
+    
+    const ratio = highCount / totalCount;
+    if (ratio >= 0.7) return "HIGH";
+    if (ratio >= 0.4) return "MEDIUM";
+    return "LOW";
   }
 }
 
